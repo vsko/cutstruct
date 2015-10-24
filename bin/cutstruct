@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+
+PATH_SYSTEM="/Users/zoom/Projects/opencart.dev"
+PATH_UNITS="$PATH_SYSTEM/data/units"
+PATH_LISTING="$PATH_SYSTEM/data/repository"
+PATH_TMP="$PATH_SYSTEM/data/tmp"
+
+cutstruct_generate() {
+  for unit in `ls -1 $1`
+  do
+    find $1/$unit -name "*.*" | \
+    grep -v ".depend" | \
+    sed "s%$1/$unit/%%g" > $PATH_UNITS/$unit
+    echo "unit: " $unit
+    echo "path: " $1/$unit
+  done
+}
+
+cutstruct_list() {
+  ls -1 $1;
+}
+
+cutstruct_delete() {
+  cutstruct_validate $1
+  unit=$PATH_UNITS/$1
+  if [ -f $unit ];
+  then
+    rm -r $unit
+  fi
+}
+
+cutstruct_exclude() {
+  cutstruct_validate $1
+  for file in `find $PATH_SYSTEM/{admin,catalog} | grep $1`
+  do
+    directory=`dirname $file | sed "s%$PATH_SYSTEM/%%g"`
+    copy=$PATH_TMP/$1/$directory
+    echo "file": $file
+    echo "directory:" $directory
+    mkdir -p $copy
+    cp -r $file $copy
+  done
+}
+
+cutstruct_clean() {
+  cutstruct_validate $1
+  for file in `cat $PATH_UNITS/$1`
+  do
+    if [ -f $PATH_SYSTEM/$file ];
+    then
+      rm -r $PATH_SYSTEM/$file
+      echo "remove: " $PATH_SYSTEM/$file
+    fi
+  done
+  find $PATH_SYSTEM/{admin,catalog} -type d -empty -delete
+}
+
+cutstruct_return() {
+  cutstruct_validate $2
+  for file in `cat $PATH_UNITS/$2`
+  do
+    if [ ! -f $PATH_SYSTEM/$file ]; then
+      mkdir -p `dirname $PATH_SYSTEM/$file` && cp "$1/$2/$file" "$PATH_SYSTEM/$file";
+      echo "return: " $1/$2/$file
+      echo "to: " $PATH_SYSTEM/$file
+    else
+      echo "exixts: $PATH_SYSTEM/$file"
+    fi
+  done
+}
+
+cutstruct_find() {
+  cutstruct_validate $3
+  flag_ff=$1
+  flag_ft=$2
+
+  if [ $flag_ff -ne 0 ];
+  then
+    echo "Files:"
+    find $PATH_SYSTEM/{admin,catalog} | grep --color $3
+  fi
+
+  if [ $flag_ft -ne 0 ];
+  then
+    echo "Data:"
+    grep --color -nr $3 $PATH_SYSTEM
+  fi
+}
+
+cutstruct_help() {
+cat <<EOF
+Usage: `basename $0` [option] [keyword]
+Options:
+         -t  --temp                Use a temporary directory to generate
+         -g  --generate            Generate index of repository
+         -l  --list                List of indexed units
+         -d  --delete              Delete the unit from a index
+         -e  --exclude <keyword>   Exclude project files to temporary directory
+         -c  --clean <keyword>     Clean files from project directory
+         -r  --return <keyword>    Return files to project directory from repository
+         -f  --find <keyword>      Find all data from keyword
+         -ff --findfile <keyword>  Find files from keyword
+         -ft --findtext <keyword>  Find text from keyword
+         -h  --help                Show help
+Examples:
+         cutstruct --find 'banner'
+         cutstruct --exclude 'banner'
+         cutstruct --temp --generate
+         cutstruct --temp --list
+         cutstruct --delete 'banner'
+         cutstruct --clean 'banner'
+         cutstruct --return 'banner'
+EOF
+exit
+}
+
+cutstruct_validate() {
+  if [ -z "$1" ]; then
+    cutstruct_help
+  fi
+}
+
+if [ $# -eq 0 ]; then
+  cutstruct_help
+fi
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+       -t|--temp) PATH_LISTING=$PATH_TMP ;;
+       -g|--generate) cutstruct_generate $PATH_LISTING; shift ;;
+       -l|--list) cutstruct_list $PATH_UNITS; shift ;;
+       -d|--delete) cutstruct_delete $2; shift ;;
+       -e|--exclude) cutstruct_exclude $2; shift ;;
+       -c|--clean) cutstruct_clean $2; shift ;;
+       -r|--return) cutstruct_return $PATH_LISTING $2; shift ;;
+       -ff|--findfile) cutstruct_find 1 0 $2 ;;
+       -ft|--findtext) cutstruct_find 0 1 $2 ;;
+       -f|--find) cutstruct_find 1 1 $2; shift ;;
+       -h) cutstruct_help ;;
+       --) shift; break ;;
+       -*) cutstruct_help ;;
+       *) break ;;
+    esac
+    shift
+done
+
